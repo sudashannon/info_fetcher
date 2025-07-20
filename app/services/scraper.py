@@ -4,13 +4,39 @@ from sqlalchemy.orm import Session
 from app.db.database import SessionLocal
 from app.models.item import Item
 from app.services.login_manager import get_logged_in_page
+from sqlalchemy import func # 导入 func
 
 # X 探索/趋势页面
 X_TRENDS_URL = "https://x.com/explore/tabs/trending"
 
+def _parse_hot_score(text: str) -> float:
+    """将 '5,123 posts' 或 '45.1K posts' 这样的文本解析为浮点数。"""
+    if not text:
+        return 0.0
+    
+    # 获取文本中的数字部分，例如 "45.1K posts" -> "45.1k"
+    parts = text.lower().split()
+    if not parts:
+        return 0.0
+    text = parts[0]
+    text = text.replace(',', '')
+    
+    multiplier = 1
+    if 'k' in text:
+        multiplier = 1000
+        text = text.replace('k', '')
+    elif 'm' in text:
+        multiplier = 1_000_000
+        text = text.replace('m', '')
+
+    try:
+        return float(text) * multiplier
+    except (ValueError, TypeError):
+        return 0.0
+
 async def scrape_x_trends(db: Session):
     """
-    使用Playwright抓取X的趋势并存入数据库
+    使用Playwright抓取X的趋势，更新或创建条目，并记录热度。
     Args:
         db: SQLAlchemy数据库会话
     """
@@ -47,35 +73,58 @@ async def scrape_x_trends(db: Session):
                 return
 
             items_added = 0
+            items_updated = 0
             for container in trend_containers:
                 try:
                     # 最终方案：通过唯一的“粗体”CSS类来定位标题，不再依赖顺序
                     title_element = container.locator('div.r-b88u0q > span').first
                     title = await title_element.text_content()
+                    title = title.strip() if title else ""
 
-                    if title and title.strip():
-                        # 手动构建URL
-                        from urllib.parse import quote
-                        query = quote(title.strip())
-                        url = f"https://x.com/search?q={query}"
-                        
-                        print(f"[调试] 找到的趋势: '{title.strip()}' -> {url}")
+                    if not title:
+                        continue
 
-                        exists = db.query(Item).filter(Item.url == url).first()
-                        if not exists:
-                            new_item = Item(
-                                title=title.strip(),
-                                url=url,
-                                source="X 趋势",
-                                hot_score=0
-                            )
-                            db.add(new_item)
-                            items_added += 1
+                    # 提取热度值
+                    post_count_text = ""
+                    # 尝试找到包含 "posts" 的 span
+                    # 在容器中查找所有span，然后检查文本内容
+                    all_spans = await container.locator('span').all_text_contents()
+                    for text in all_spans:
+                        if text and 'posts' in text.lower():
+                            post_count_text = text
+                            break
+                    
+                    hot_score = _parse_hot_score(post_count_text)
+
+                    from urllib.parse import quote
+                    query = quote(title)
+                    url = f"https://x.com/search?q={query}"
+                    
+                    item = db.query(Item).filter(Item.url == url).first()
+
+                    if item:
+                        # 更新已存在的条目
+                        item.hot_score = hot_score
+                        item.updated_at = func.now()
+                        items_updated += 1
+                        print(f"[更新] '{title}' (热度: {hot_score})")
+                    else:
+                        # 创建新条目
+                        new_item = Item(
+                            title=title,
+                            url=url,
+                            source="X 趋势",
+                            hot_score=hot_score
+                        )
+                        db.add(new_item)
+                        items_added += 1
+                        print(f"[新增] '{title}' (热度: {hot_score})")
+
                 except Exception as e:
                     print(f"解析单个趋势时出错: {e}")
 
             db.commit()
-            print(f"抓取完成，共向数据库添加了 {items_added} 个新的X趋势。")
+            print(f"抓取完成，新增 {items_added} 条，更新 {items_updated} 条。")
 
         except Exception as e:
             print(f"使用Playwright抓取时发生严重错误: {e}")

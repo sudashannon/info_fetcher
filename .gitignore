@@ -1,1 +1,15 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+
+# Virtual environment
+.venv/
+
+# Session files
 sessions/
+
+# Database file
+hotspot.db
+
+# Environment setup script
+env_setup.sh

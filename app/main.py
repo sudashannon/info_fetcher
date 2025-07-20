@@ -18,12 +18,16 @@ async def lifespan(app: FastAPI):
     # 应用启动时执行
     print("应用启动...")
     
-    # --- 启动时立即执行一次抓取 ---
+    # --- 启动时立即执行一次抓取和推送 ---
     print("立即执行一次启动抓取任务...")
     db = SessionLocal()
     try:
         await scrape_x_trends(db) # 直接await异步函数
         print("启动抓取任务完成。")
+        
+        print("立即执行一次启动推送任务...")
+        push_hotspots_by_email() # 同步函数直接调用
+        print("启动推送任务完成。")
     finally:
         db.close()
     
