@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+requests
+beautifulsoup4
+apscheduler
+pytest
+httpx
+jinja2
+playwright
