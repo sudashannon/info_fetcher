@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>股票价格预警</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            color: #333;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            color: #0056b3;
+            text-align: center;
+        }
+        .alert-details {
+            margin-top: 20px;
+            padding: 15px;
+            border-left: 5px solid;
+        }
+        .alert-details.above {
+            border-left-color: #28a745; /* 绿色 */
+            background-color: #e9f7ef;
+        }
+        .alert-details.below {
+            border-left-color: #dc3545; /* 红色 */
+            background-color: #fdf2f2;
+        }
+        .alert-details p {
+            margin: 5px 0;
+        }
+        .footer {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>股票价格预警</h1>
+        </div>
+        <div class="alert-details {{ alert.condition }}">
+            <p><strong>股票代码:</strong> {{ alert.symbol }}</p>
+            <p><strong>触发条件:</strong> 价格 {{ '高于' if alert.condition == 'above' else '低于' }} {{ alert.target_price }}</p>
+            <p><strong>当前价格:</strong> {{ "%.2f"|format(alert.current_price) }}</p>
+            <p><strong>触发时间:</strong> {{ alert.timestamp }}</p>
+        </div>
+        <div class="footer">
+            <p>本邮件由 Info Fetcher 自动生成。数据来源 OpenBB，仅供参考，不构成投资建议。</p>
+        </div>
+    </div>
+</body>
+</html>

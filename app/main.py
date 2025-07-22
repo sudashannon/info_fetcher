@@ -4,8 +4,11 @@ from contextlib import asynccontextmanager
 from apscheduler.schedulers.background import BackgroundScheduler
 from app.db.database import engine, Base, SessionLocal
 from app.models.item import Item
-from app.services.scraper import scrape_x_trends, run_scrape_x # 导入两个函数
-from app.services.pusher import push_hotspots_by_email
+from app.services.scraper import run_scrape_x
+from app.services.pusher import push_market_summary
+from app.services.alerter import check_price_alerts
+from app.services.market_data_fetcher import get_market_summary
+from datetime import datetime, timedelta
 
 # 创建数据库表
 Base.metadata.create_all(bind=engine)
@@ -15,39 +18,22 @@ templates = Jinja2Templates(directory="app/templates")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 应用启动时执行
     print("应用启动...")
-    
-    # --- 启动时立即执行一次抓取和推送 ---
-    print("立即执行一次启动抓取任务...")
-    db = SessionLocal()
-    try:
-        await scrape_x_trends(db) # 直接await异步函数
-        print("启动抓取任务完成。")
-        
-        print("立即执行一次启动推送任务...")
-        push_hotspots_by_email() # 同步函数直接调用
-        print("启动推送任务完成。")
-    finally:
-        db.close()
-    
-    # --- 初始化并启动定时任务 ---
     scheduler = BackgroundScheduler()
-    # 定时任务需要运行在同步函数中，所以我们仍然使用run_scrape_x
     scheduler.add_job(run_scrape_x, 'interval', hours=1, id="scrape_x")
-    scheduler.add_job(push_hotspots_by_email, 'cron', minute=5, id="push_email")
+    scheduler.add_job(push_market_summary, 'interval', minutes=15, id="push_market_summary")
+    scheduler.add_job(check_price_alerts, 'interval', minutes=1, id="check_price_alerts")
+    scheduler.add_job(run_scrape_x, 'date', run_date=datetime.now() + timedelta(seconds=2), id="scrape_x_initial")
     scheduler.start()
-    print("调度器已启动，定时抓取和推送任务已安排。")
-    
+    print("调度器已启动，所有定时任务已安排。")
     yield
-    
-    # 应用关闭时执行 (如果需要)
     print("应用关闭...")
+    scheduler.shutdown()
 
 app = FastAPI(
     title="实时热点聚合与推送系统",
     description="一个自动化的信息聚合工具，用于抓取、分析并推送热点信息。",
-    version="0.1.0",
+    version="0.3.0",
     lifespan=lifespan
 )
 
@@ -64,4 +50,27 @@ async def view_dashboard(request: Request):
     finally:
         db.close()
 
-# 后续将在这里集成后台任务和API路由
+@app.get("/financials", tags=["管理后台"])
+def view_financials(request: Request):
+    try:
+        summary_data = get_market_summary()
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        return templates.TemplateResponse(
+            request,
+            "financial_dashboard.html",
+            {
+                "summary": summary_data,
+                "timestamp": timestamp,
+                "error": None
+            }
+        )
+    except Exception as e:
+        return templates.TemplateResponse(
+            request,
+            "financial_dashboard.html",
+            {
+                "summary": None,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "error": str(e)
+            }
+        )

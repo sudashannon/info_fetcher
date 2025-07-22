@@ -8,3 +8,7 @@ pytest
 httpx
 jinja2
 playwright
+openbb
+tradingview-ta
+pandas
+pandas-ta

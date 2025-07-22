@@ -1,0 +1,15 @@
+# 股票价格预警配置
+# 在这里定义你想要监控的股票和触发条件。
+
+price_alerts:
+  - symbol: "AAPL"      # 股票代码 (例如, 苹果公司)
+    condition: above    # 触发条件: 'above' (高于) 或 'below' (低于)
+    target_price: 220.0 # 目标价格
+
+  - symbol: "TSLA"      # 股票代码 (例如, 特斯拉)
+    condition: below    # 触发条件
+    target_price: 170.0 # 目标价格
+
+  - symbol: "NVDA"      # 股票代码 (例如, 英伟达)
+    condition: above
+    target_price: 150.0

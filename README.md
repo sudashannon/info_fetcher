@@ -1,84 +1,96 @@
-# 实时热点聚合与推送系统
+# Info Fetcher: 实时信息聚合与推送系统
 
-本项目旨在开发一个自动化的信息聚合工具，用于抓取、分析并推送来自各大门户网站和社交平台的热点信息。
+本项目是一个自动化的信息聚合与推送平台，旨在监控并传递对您最重要的信息。它结合了社交媒体趋势分析和金融市场数据监控，并通过邮件系统为您提供及时的更新和预警。
 
-## 环境依赖
+## 核心功能
 
-本项目依赖 Python 3.8+ 环境。在开始之前，请确保您已安装 `pip` 和 `venv`。
+目前，平台包含两大核心功能模块：
 
-```bash
-# 更新包列表
-sudo apt-get update
+### 1. X/Twitter 趋势监控
+- **自动抓取**: 定时使用 Playwright 抓取 X (前身为 Twitter) 的“探索”页面，获取最新的热门趋势。
+- **增量推送**: 智能比对新旧数据，只在发现新的、之前未出现过的热门趋势时，才会通过邮件进行推送。
+- **数据持久化**: 所有抓取到的趋势都将被存储在数据库中，方便回顾。
+- **Web 界面**: 提供一个简洁的 `/dashboard` 页面，用于展示所有已抓取的历史趋势。
 
-# 安装pip
-sudo apt-get install -y python3-pip
+### 2. 金融信息监控 (基于 TradingView)
+- **可靠的数据源**: 所有金融数据均通过 `tradingview-ta` 库直接从 **TradingView** 获取，确保了数据的专业性、稳定性和实时性（需要您提供自己的 TradingView 账户）。
+- **市场概览**: 提供一个 `/financials` 金融仪表盘，集中展示：
+    - **主要市场指数**: 如 S&P 500 和 Nasdaq 100 的最新价格和涨跌幅。
+    - **个股观察列表**: 自动获取并展示您在 `monitor_config.yaml` 文件中定义的所有股票的最新价格。
+- **可配置的价格预警**: 
+    - **灵活配置**: 您可以在 `monitor_config.yaml` 文件中轻松添加、修改或删除您关心的股票价格预警规则。
+    - **即时推送**: 后台任务会以分钟级的频率检查股价，一旦满足您设定的条件（如高于或低于某个价格），系统会立即发送一封预警邮件到您的邮箱。
 
-# 安装venv
-sudo apt-get install -y python3.8-venv
-```
+## 技术栈
 
-## 开发计划
-
-### 第一阶段 (MVP)
-
-- [x] 初始化项目结构
-- [x] 实现核心抓取逻辑 (微博热搜)
-- [x] 设计数据库模型 (SQLite)
-- [x] 实现基本的数据存储功能
-- [x] 实现定时任务抓取
-- [x] 实现邮件推送功能
+- **Web 框架**: FastAPI
+- **后台任务**: APScheduler
+- **数据抓取**: Playwright (用于 X/Twitter), tradingview-ta (用于金融数据)
+- **数据库**: SQLAlchemy, SQLite
+- **前端**: Jinja2 模板引擎
 
 ## 如何运行
 
-1.  **安装依赖:**
+### 1. 安装依赖
 
-    ```bash
-    pip install -r requirements.txt
-    ```
+首先，请确保您已安装所有必需的 Python 库：
+```bash
+pip install -r requirements.txt
+```
 
-2.  **配置邮件:**
+### 2. 配置环境变量 (关键步骤)
 
-    打开 `app/core/config.py` 文件，修改以下邮件配置项。建议使用环境变量进行配置。
+在启动应用前，您**必须**在您的终端中设置以下环境变量。这是确保所有功能正常运行的前提。
 
-    ```python
-    MAIL_SERVER = "smtp.example.com"
-    MAIL_PORT = 587
-    MAIL_USERNAME = "your-email@example.com"
-    MAIL_PASSWORD = "your-password"
-    MAIL_FROM = "your-email@example.com"
-    MAIL_TO = ["recipient1@example.com", "recipient2@example.com"]
-    ```
+**对于 X/Twitter 抓取 (首次运行):**
+```bash
+# 您的 X/Twitter 登录用户名或邮箱
+export X_USERNAME="your-x-username"
+# 您的 X/Twitter 登录密码
+export X_PASSWORD="your-x-password"
+# (可选) 如果登录时需要手机号进行二次验证，请设置此项
+export X_VERIFICATION_IDENTIFIER="your-phone-number"
+```
+> **注意**: 首次运行后，系统会生成一个 `sessions/x_session.json` 文件。在此之后，只要该文件不过期，您就不再需要设置 X 的环境变量。
 
-3.  **启动应用:**
+**对于金融数据获取 (必需):**
+```bash
+# 您的 TradingView 登录用户名
+export TRADINGVIEW_USERNAME="your-tv-username"
+# 您的 TradingView 登录密码
+export TRADINGVIEW_PASSWORD="your-tv-password"
+```
 
-    ```bash
-    uvicorn app.main:app --reload
-    ```
+**对于邮件推送 (必需):**
+```bash
+# 您的邮件服务器地址 (例如: smtp.gmail.com)
+export MAIL_SERVER="smtp.example.com"
+# 您的邮件服务器端口 (例如: 587)
+export MAIL_PORT="587"
+# 您的邮箱用户名
+export MAIL_USERNAME="your-email@example.com"
+# 您的邮箱密码或应用专用密码
+export MAIL_PASSWORD="your-password"
+# 您的发件邮箱地址
+export MAIL_FROM="your-email@example.com"
+# 收件人邮箱列表 (用逗号分隔)
+export MAIL_TO="recipient1@example.com,recipient2@example.com"
+```
 
-4.  **访问:**
+### 3. 配置价格预警 (可选)
 
-    应用启动后，可以访问 `http://127.0.0.1:8000` 查看欢迎信息。
+打开项目根目录下的 `monitor_config.yaml` 文件，您可以按照文件中的示例格式，添加或修改您想要监控的股票和预警条件。
 
-    爬虫和邮件推送任务将在后台自动运行。
+### 4. 启动应用
 
-## 如何测试
+完成所有配置后，执行以下命令来启动应用：
+```bash
+uvicorn app.main:app --reload
+```
 
-项目包含一套完整的单元测试和集成测试，以确保代码质量。
+### 5. 访问应用
 
-1.  **安装测试依赖:**
+- **热点新闻**: `http://127.0.0.1:8000/dashboard`
+- **金融仪表盘**: `http://127.0.0.1:8000/financials`
 
-    `pytest` 已经包含在 `requirements.txt` 中。
-
-2.  **运行测试:**
-
-    在项目根目录下执行以下命令：
-
-    ```bash
-    pytest
-    ```
-
-    或者，如果 `pytest` 命令未找到，请使用：
-
-    ```bash
-    python3 -m pytest
-    ```
+所有后台任务（抓取、预警检查、推送）都将自动运行。
